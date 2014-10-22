@@ -19,7 +19,7 @@ const int input_6 = 0;
 //*** set pin number End ***//
 
 char* arrLeftEnter[] = {"Enter","Fun_Direction","Alt_R","Command_R","Caps"};
-char* arrLeftN[]     = {"n","m",",",".","Caps"};
+char* arrLeftN[]     = {"n","m",",",".","EasterEgg"};
 char* arrLeftH[]     = {"h","j","k","l","Back"};
 char* arrLeftY[]     = {"y","u","i","o","p"};
 char* arrLeftCtrl[]  = {"Ctrl","Command_L","Alt_L","Fn_mark","Space"};
@@ -54,14 +54,14 @@ char* arrLeftFnNum_Mark[] = {"Fn_Num","[","]", "{","}","^"};
 char* arrLeftEsc_Mark[]   = {"Esc","#","$","%","&","@"};
 char* arrLeftTab_Mark[]   = {"Tab","!","?","_","""","'"};
 
-//char** g_arrEnterArrays[] = {arrLeftEnter, arrLeftEnter_Num,  arrLeftEnter_Direction,  arrLeftEnter_Mark};
-//char** g_arrCharNArrays[] = {arrLeftN,     arrLeftN_Num,      arrLeftN_Direction,      arrLeftN_Mark};
-//char** g_arrCharHArrays[] = {arrLeftH,     arrLeftH_Num,      arrLeftH_Direction,      arrLeftH_Mark};
-//char** g_arrCharYArrays[] = {arrLeftY,     arrLeftY_Num,      arrLeftY_Direction,      arrLeftY_Mark};
-//char** g_arrCtrlArrays[]  = {arrLeftCtrl,  arrLeftCtrl_Num,   arrLeftCtrl_Direction,   arrLeftCtrl_Mark};
-//char** g_arrFnNumArrays[] = {arrLeftFnNum, arrLeftFnNum_Num,  arrLeftEnter_Direction,  arrLeftFnNum_Mark};
-//char** g_arrEscArrays[]   = {arrLeftEsc,   arrLeftEsc_Num,    arrLeftFnNum_Direction,  arrLeftEsc_Mark};
-//char** g_arrTabArrays[]   = {arrLeftTab,   arrLeftTab_Num,    arrLeftTab_Direction,    arrLeftTab_Mark};
+//char** m_arrEnterArrays[] = {arrLeftEnter, arrLeftEnter_Num,  arrLeftEnter_Direction,  arrLeftEnter_Mark};
+//char** m_arrCharNArrays[] = {arrLeftN,     arrLeftN_Num,      arrLeftN_Direction,      arrLeftN_Mark};
+//char** m_arrCharHArrays[] = {arrLeftH,     arrLeftH_Num,      arrLeftH_Direction,      arrLeftH_Mark};
+//char** m_arrCharYArrays[] = {arrLeftY,     arrLeftY_Num,      arrLeftY_Direction,      arrLeftY_Mark};
+//char** m_arrCtrlArrays[]  = {arrLeftCtrl,  arrLeftCtrl_Num,   arrLeftCtrl_Direction,   arrLeftCtrl_Mark};
+//char** m_arrFnNumArrays[] = {arrLeftFnNum, arrLeftFnNum_Num,  arrLeftEnter_Direction,  arrLeftFnNum_Mark};
+//char** m_arrEscArrays[]   = {arrLeftEsc,   arrLeftEsc_Num,    arrLeftFnNum_Direction,  arrLeftEsc_Mark};
+//char** m_arrTabArrays[]   = {arrLeftTab,   arrLeftTab_Num,    arrLeftTab_Direction,    arrLeftTab_Mark};
 
 #define LOCK_FN_NUM 1
 #define LOCK_FN_DIRECTION 2
@@ -70,13 +70,17 @@ char* arrLeftTab_Mark[]   = {"Tab","!","?","_","""","'"};
 
 const int delay_keyboard_char_press = 200;
 
-int g_iLOCK = 0;
-int g_currentOutput = -1;
+int m_iLock = 0;
+int m_currentOutput = -1;
 
-boolean g_isPressedNum = false;
-boolean g_isPressedDirection = false;
-boolean g_isPressedMark = false;
-boolean g_isPressedShift = false;
+boolean m_isPressedNum = false;
+boolean m_isPressedDirection = false;
+boolean m_isPressedMark = false;
+boolean m_isPressedShift = false;
+
+int m_iPressSameTimeFuncKeyType = 0;
+
+unsigned long lastPressTime = 0;
 
 struct keyEvent{
   char* pArr;
@@ -112,14 +116,14 @@ void loop()
   {
     digitalWrite(i,HIGH);
 
-    g_currentOutput = i;
+    m_currentOutput = i;
     releaseCommandKey();
     releaseAltKey();
     releaseCtrlKey();
-    setBooleanFnNum(isPressing_FnNum());
-    setBooleanFnDirection(isPressing_FnDirection());
-    setBooleanFnMark(isPressing_FnMark());
-    setBooleanShift(isPressing_Shift());
+    setBooleanFnNum(isPressinm_FnNum());
+    setBooleanFnDirection(isPressinm_FnDirection());
+    setBooleanFnMark(isPressinm_FnMark());
+    setBooleanShift(isPressinm_Shift());
 
     if (isPress())
     {
@@ -133,25 +137,36 @@ void loop()
 
 void setBooleanCommon(boolean isPressing, boolean* pressed,int lockType)
 {
+
+if (lastPressTime + 1000 > millis())
+{
+	if (m_iPressSameTimeFuncKeyType ==lockType )
+	{
+	*pressed = false;
+return;
+	}
+}
+
+
   static int iDebug = 0;
-  if (g_iLOCK != iDebug)
+  if (m_iLock != iDebug)
   {
     Serial.write("setBooleanCommon : ");
-    Serial.print(g_iLOCK);
+    Serial.print(m_iLock);
     Serial.println();    
-    iDebug = g_iLOCK;
+    iDebug = m_iLock;
   }
 
   if (isPressing)
   {
     *pressed = true; 
-    g_iLOCK = 0;
+    m_iLock = 0;
   }
   else
   {
     if (*pressed)
     {
-      g_iLOCK = lockType;
+      m_iLock = lockType;
     } 
     *pressed = false;
   }
@@ -162,13 +177,13 @@ boolean isPressingCommon(int output,int input)
 {
   boolean isPressing = false;
   
-  digitalWrite(g_currentOutput,LOW);
+  digitalWrite(m_currentOutput,LOW);
   digitalWrite(output ,HIGH);
   
   isPressing = digitalRead(input);
   
   digitalWrite(output,LOW);
-  digitalWrite(g_currentOutput,HIGH);
+  digitalWrite(m_currentOutput,HIGH);
 
 //  if (isPressing)
 //  {
@@ -192,15 +207,21 @@ boolean isPress()
   return isPress;
 }
 
+int pressingFuncKeyType(int defaultNum)
+{
+  int retNum = defaultNum;
+  retNum = isPressinm_FnNum() ? LOCK_FN_NUM : retNum; 
+  retNum = isPressinm_FnDirection() ? LOCK_FN_DIRECTION : retNum; 
+  retNum = isPressinm_FnMark() ? LOCK_FN_MARK : retNum; 
+  retNum = isPressinm_Shift() ? LOCK_FN_SHIFT : retNum;
+  return retNum; 
+}
+
 void selectPressButtonType(int outputNum)
 {
-  int iLock = g_iLOCK;
-  iLock = isPressing_FnNum() ? LOCK_FN_NUM : iLock; 
-  iLock = isPressing_FnDirection() ? LOCK_FN_DIRECTION : iLock; 
-  iLock = isPressing_FnMark() ? LOCK_FN_MARK : iLock; 
-  iLock = isPressing_Shift() ? LOCK_FN_SHIFT : iLock; 
+  int iLock = pressingFuncKeyType(m_iLock);
   
-  boolean isPressing = iLock != g_iLOCK;
+  boolean isPressing = iLock != m_iLock;
   
   switch (outputNum)
   {
@@ -230,19 +251,22 @@ void selectPressButtonType(int outputNum)
     break;
   default:
     break;
-
   }
+  lastPressTime = millis();
   return;
 }
 
 void keyboardPrint(char* printChar,int iLock)
 {
+  int iPressingFuncKeyType = pressingFuncKeyType(0);
+  
   if (iLock == LOCK_FN_SHIFT)
   {
     Keyboard.press(KEY_LEFT_SHIFT) ;
   }
-  Serial.print(printChar);
-  Serial.println();
+//  Serial.print(printChar);
+//  Serial.println();
+
 
   Keyboard.print(printChar);
 
@@ -251,24 +275,31 @@ void keyboardPrint(char* printChar,int iLock)
     Keyboard.release(KEY_LEFT_SHIFT); 
   }
 
+if (iPressingFuncKeyType > 0)
+{
+  Serial.print(iPressingFuncKeyType);
+  m_iPressSameTimeFuncKeyType = iPressingFuncKeyType;
+}
+
   delay(delay_keyboard_char_press);
   return;
 }
 
 void executeCommand(char* commandName,int iLock)
 {
-  Serial.print(commandName);
-  Serial.println();
+//  Serial.print(commandName);
+//  Serial.println();
   if (!strcmp(commandName,"Non")) return;
   if (!strcmp(commandName,"""")) 
   {
-    Serial.write("xxxx");
     Keyboard.press(KEY_LEFT_SHIFT);
     Keyboard.print("'");
     Keyboard.release(KEY_LEFT_SHIFT);
     delay(delay_keyboard_char_press);
     return;
   }
+
+  int iPressingFuncKeyType = pressingFuncKeyType(0);
 
   if (!strcmp(commandName,"Enter"))
   {
@@ -278,11 +309,15 @@ void executeCommand(char* commandName,int iLock)
   }
   else if (!strcmp(commandName,"Caps"))
   {
-    setBooleanShift(true);
+	m_iLock = 0;
+	m_isPressedShift = true;
+	iPressingFuncKeyType = 0;
   }
   else if (!strcmp(commandName,"Fun_Direction"))
   {
-    setBooleanFnDirection(true);
+  	m_iLock = 0;
+	m_isPressedDirection = true;
+	iPressingFuncKeyType = 0;
   }
   else if (!strcmp(commandName,"Ctrl"))
   {
@@ -306,7 +341,9 @@ void executeCommand(char* commandName,int iLock)
   }
   else if (!strcmp(commandName,"Fn_mark"))
   {
-    setBooleanFnMark(true);
+	m_iLock = 0;
+	m_isPressedMark = true;
+	iPressingFuncKeyType = 0;
   }
   else if (!strcmp(commandName,"Space"))
   {
@@ -315,7 +352,9 @@ void executeCommand(char* commandName,int iLock)
   }
   else if (!strcmp(commandName,"Fn_Num"))
   {
-    setBooleanFnNum(true);
+	m_iLock = 0;
+	m_isPressedNum = true;
+	iPressingFuncKeyType = 0;
   }
   else if (!strcmp(commandName,"Tab"))
   {
@@ -360,9 +399,16 @@ void executeCommand(char* commandName,int iLock)
   }
   else if (!strcmp(commandName,"EasterEgg"))
   {
+    Serial.write("EasterEgg");
     Keyboard.press(KEY_RETURN);
     Keyboard.release(KEY_RETURN);
   }
+  
+if (iPressingFuncKeyType > 0)
+{
+  Serial.print(iPressingFuncKeyType);
+  m_iPressSameTimeFuncKeyType = iPressingFuncKeyType;
+}
   return;
 }
 
@@ -401,40 +447,27 @@ void pressButtonEvent (char** pArr, int iLock)
 
 void setBooleanFnNum(boolean isPressing)
 {
-  if (isPressing)
-  {
-    g_isPressedNum = true; 
-    g_iLOCK = 0;
-  }
-  else
-  {
-    if (g_isPressedNum)
-    {
-      g_iLOCK = LOCK_FN_NUM;
-    } 
-    g_isPressedNum = false;
-  }
-  setBooleanCommon(isPressing,&g_isPressedDirection,LOCK_FN_DIRECTION);
+  setBooleanCommon(isPressing,&m_isPressedNum,LOCK_FN_NUM);
   return; 
 }
 
 void setBooleanFnDirection(boolean isPressing)
 {
-  setBooleanCommon(isPressing,&g_isPressedDirection,LOCK_FN_DIRECTION);
+  setBooleanCommon(isPressing,&m_isPressedDirection,LOCK_FN_DIRECTION);
   return; 
 }
 
 
 void setBooleanFnMark(boolean isPressing)
 {
-  setBooleanCommon(isPressing,&g_isPressedMark,LOCK_FN_MARK);
+  setBooleanCommon(isPressing,&m_isPressedMark,LOCK_FN_MARK);
   return; 
 }
 
 
 void setBooleanShift(boolean isPressing)
 {
-  setBooleanCommon(isPressing,&g_isPressedShift,LOCK_FN_SHIFT);
+  setBooleanCommon(isPressing,&m_isPressedShift,LOCK_FN_SHIFT);
   return; 
 }
 
@@ -442,7 +475,7 @@ void setBooleanShift(boolean isPressing)
 void releaseCommandKey()
 {
   boolean isRelease = true;
-  isRelease = !(isPressing_CommandKey_Left() || isPressing_CommandKey_Right());
+  isRelease = !(isPressinm_CommandKey_Left() || isPressinm_CommandKey_Right());
   if (isRelease)
   {
     Keyboard.release(KEY_RIGHT_GUI);
@@ -454,7 +487,7 @@ void releaseCommandKey()
 void releaseAltKey()
 {
   boolean isRelease = true;
-  isRelease = !(isPressing_AltKey_Left() || isPressing_AltKey_Right()) ;
+  isRelease = !(isPressinm_AltKey_Left() || isPressinm_AltKey_Right()) ;
   if (isRelease)
   {
     Keyboard.release(KEY_RIGHT_ALT);
@@ -466,7 +499,7 @@ void releaseAltKey()
 void releaseCtrlKey()
 {
   boolean isRelease = true;
-  isRelease = !isPressing_CtrlKey_Left();
+  isRelease = !isPressinm_CtrlKey_Left();
   
   if (isRelease)
   {
@@ -477,47 +510,47 @@ void releaseCtrlKey()
 }
 
 
-boolean isPressing_CommandKey_Left()
+boolean isPressinm_CommandKey_Left()
 {
   return isPressingCommon(mostLeftKey_Ctrl_5,input_2);
 }
 
-boolean isPressing_AltKey_Left()
+boolean isPressinm_AltKey_Left()
 {
   return isPressingCommon(mostLeftKey_Ctrl_5,input_3);
 }
 
-boolean isPressing_CtrlKey_Left()
+boolean isPressinm_CtrlKey_Left()
 {
   return isPressingCommon(mostLeftKey_Ctrl_5,input_1);
 }
 
-boolean isPressing_CommandKey_Right()
+boolean isPressinm_CommandKey_Right()
 {
   return isPressingCommon(mostLeftKey_Enter_5,input_4);
 }
 
-boolean isPressing_AltKey_Right()
+boolean isPressinm_AltKey_Right()
 {
   return isPressingCommon(mostLeftKey_Enter_5,input_3);
 }
 
-boolean isPressing_Shift()
+boolean isPressinm_Shift()
 {
   return isPressingCommon(mostLeftKey_Enter_5,input_5);
 }
 
-boolean isPressing_FnNum()
+boolean isPressinm_FnNum()
 {
   return isPressingCommon(mostLeftKey_FnNum_6,input_1);
 }
 
-boolean isPressing_FnDirection()
+boolean isPressinm_FnDirection()
 {
   return isPressingCommon(mostLeftKey_Enter_5,input_2);
 }
 
-boolean isPressing_FnMark()
+boolean isPressinm_FnMark()
 {
   return isPressingCommon(mostLeftKey_Ctrl_5,input_4);
 }
@@ -709,7 +742,14 @@ void press_mostLeftKey_Esc_6(int iLock)
   return;
 }
 
-
+void clearAllFlag()
+{
+	m_iLock = 0;
+	m_isPressedNum = false;
+	m_isPressedDirection = false;
+	m_isPressedMark = false;
+	m_isPressedShift = false;
+}
 
 
 
@@ -723,14 +763,14 @@ void debug()
   digitalWrite(mostLeftKey_FnNum_6,HIGH);
   digitalWrite(mostLeftKey_Esc_6,HIGH);
   digitalWrite(mostLeftKey_Tab_6,HIGH);
-  debug_buttonPlace();
+  debum_buttonPlace();
   delay(100);
   return;  
 }
 
 
 
-void debug_buttonPlace()
+void debum_buttonPlace()
 {
   if (digitalRead(input_1) == HIGH)
   {
